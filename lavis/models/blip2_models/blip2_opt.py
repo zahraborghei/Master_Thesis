@@ -17,6 +17,14 @@ from lavis.models.blip2_models.blip2 import Blip2Base, disabled_train
 from transformers import AutoTokenizer, OPTForCausalLM, OPTConfig
 import transformers
 
+# Import the load_pretrained_model function
+# from mujoco_vc.model_loading import load_pretrained_model, fuse_embeddings_flare
+from stable_control_representations.cortexbench.mujoco_vc.src.mujoco_vc.model_loading import load_pretrained_model, fuse_embeddings_flare
+from stable_control_representations.cortexbench.mujoco_vc.visual_imitation.hydra_launcher import configure_jobs
+# import os
+import os
+from omegaconf import OmegaConf
+
 
 @registry.register_model("blip2_opt")
 class Blip2OPT(Blip2Base):
@@ -61,26 +69,52 @@ class Blip2OPT(Blip2Base):
         assert transformers_version >= version.parse("4.27"), "BLIP-2 OPT requires transformers>=4.27"
         
         self.tokenizer = self.init_tokenizer()
+        self.sd_model_config = configure_jobs("stable_control_representations/cortexbench/mujoco_vc/visual_imitation/config/Metaworld_BC_config.yaml")
+        #("LAVIS/stable-control-representations/cortexbench/mujoco_vc/visual_imitation/config/Metaworld_BC_config.yaml")
+        # "/opt/data/borghei/LAVIS/stable-control-representations/cortexbench/mujoco_vc/visual_imitation/config/Metaworld_BC_config.yaml"
+        
 
-        self.visual_encoder, self.ln_vision = self.init_vision_encoder(
-            vit_model, img_size, drop_path_rate, use_grad_checkpoint, vit_precision
-        )
-        if freeze_vit:
-            for name, param in self.visual_encoder.named_parameters():
-                param.requires_grad = False
-            self.visual_encoder = self.visual_encoder.eval()
-            self.visual_encoder.train = disabled_train
-            logging.info("freeze vision encoder")
 
-        self.Qformer, self.query_tokens = self.init_Qformer(
-            num_query_token, self.visual_encoder.num_features
+        base_dir = "/opt/data/borghei/LAVIS"  # Adjust this to your workspace root
+        model_config_path = os.path.join(
+            base_dir, 
+            "stable_control_representations/vc_models/src/vc_models/conf/model/diffusion_sd_15_laion.yaml"
         )
-        self.Qformer.cls = None
-        self.Qformer.bert.embeddings.word_embeddings = None
-        self.Qformer.bert.embeddings.position_embeddings = None
-        for layer in self.Qformer.bert.encoder.layer:
-            layer.output = None
-            layer.intermediate = None
+
+        # Load model config directly
+        model_config = OmegaConf.load(model_config_path)
+        # Load Stable Diffusion model for feature extraction
+        print("model_config", model_config)
+        self.sd_model, self.embedding_dim, self.transforms, self.metadata = load_pretrained_model(
+            # self.sd_model_config["env_kwargs"]["embedding_config"]
+            model_config
+        )
+        for name, param in self.sd_model.named_parameters():
+            param.requires_grad = False
+            self.sd_model = self.sd_model.eval()
+            self.sd_model.train = disabled_train
+            logging.info("freeze stable diffusion model")
+        self.diffusion_timesteps = self.sd_model_config["diffusion_timesteps"]
+
+        # self.visual_encoder, self.ln_vision = self.init_vision_encoder(
+            #  vit_model, img_size, drop_path_rate, use_grad_checkpoint, vit_precision
+        # )
+        # if freeze_vit:
+        #     for name, param in self.visual_encoder.named_parameters():
+        #         param.requires_grad = False
+        #     self.visual_encoder = self.visual_encoder.eval()
+        #     self.visual_encoder.train = disabled_train
+        #     logging.info("freeze vision encoder")
+
+        # self.Qformer, self.query_tokens = self.init_Qformer(
+        #     num_query_token, self.visual_encoder.num_features
+        # )
+        # self.Qformer.cls = None
+        # self.Qformer.bert.embeddings.word_embeddings = None
+        # self.Qformer.bert.embeddings.position_embeddings = None
+        # for layer in self.Qformer.bert.encoder.layer:
+        #     layer.output = None
+        #     layer.intermediate = None
 
         self.opt_tokenizer = AutoTokenizer.from_pretrained(opt_model, use_fast=False)
         self.opt_model = OPTForCausalLM.from_pretrained(
@@ -93,7 +127,8 @@ class Blip2OPT(Blip2Base):
         ).input_ids[0]
 
         self.opt_proj = nn.Linear(
-            self.Qformer.config.hidden_size, self.opt_model.config.hidden_size
+            # self.Qformer.config.hidden_size, self.opt_model.config.hidden_size
+            self.embedding_dim, self.opt_model.config.hidden_size
         )
 
         self.max_txt_len = max_txt_len
@@ -106,21 +141,44 @@ class Blip2OPT(Blip2Base):
 
     def forward(self, samples):
         image = samples["image"]
+
+        # processed_images = torch.cat([self.transforms(img) for img in image])
+        processed_images = torch.cat([self.transforms(img) for img in image])
+        # 
         with self.maybe_autocast():
-            image_embeds = self.ln_vision(self.visual_encoder(image))
-        image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(
-            image.device
-        )
+        #     image_embeds = self.ln_vision(self.visual_encoder(image))
+        # image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(
+        #     image.device
+        # )
 
-        query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
-        query_output = self.Qformer.bert(
-            query_embeds=query_tokens,
-            encoder_hidden_states=image_embeds,
-            encoder_attention_mask=image_atts,
-            return_dict=True,
-        )
+        # query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
+        # query_output = self.Qformer.bert(
+        #     query_embeds=query_tokens,
+        #     encoder_hidden_states=image_embeds,
+        #     encoder_attention_mask=image_atts,
+        #     return_dict=True,
+        # )
 
-        inputs_opt = self.opt_proj(query_output.last_hidden_state)
+            diffusion_prompt = samples["raw_caption"] 
+            # Extract embeddings from SD model
+            with torch.no_grad():# if not self.sd_model.training else torch.enable_grad():
+                if diffusion_prompt is not None:
+                    image_embeddings = self.sd_model(
+                        processed_images,#processed_images.to(self.device) 
+                        diffusion_prompt, 
+                        self.diffusion_timesteps, 
+                        new_noise=True
+                    )
+                    print("diffusion_prompt", diffusion_prompt)
+                else:
+                    image_embeddings = self.sd_model(processed_images)#processed_images.to(self.device)
+                    print("without diffusion_prompt")
+
+                # save embedding in RAM and free up GPU memory
+                image_embeddings = image_embeddings.detach()#.to("cpu").data.numpy() 
+        
+        # Project SD embeddings to OPT dimensions
+        inputs_opt = self.opt_proj(image_embeddings)#(query_output.last_hidden_state)
         atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(image.device)
 
         self.opt_tokenizer.padding_side = "right"
@@ -190,21 +248,45 @@ class Blip2OPT(Blip2Base):
             captions (list): A list of strings of length batch_size * num_captions.
         """
         image = samples["image"]
+
+        processed_images = torch.cat([self.transforms(img) for img in image])
+
+
         with self.maybe_autocast():
-            image_embeds = self.ln_vision(self.visual_encoder(image))
-            image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(
-                image.device
-            )
+            # image_embeds = self.ln_vision(self.visual_encoder(image))
+            # image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(
+            #     image.device
+            # )
 
-            query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
-            query_output = self.Qformer.bert(
-                query_embeds=query_tokens,
-                encoder_hidden_states=image_embeds,
-                encoder_attention_mask=image_atts,
-                return_dict=True,
-            )
+            # query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
+            # query_output = self.Qformer.bert(
+            #     query_embeds=query_tokens,
+            #     encoder_hidden_states=image_embeds,
+            #     encoder_attention_mask=image_atts,
+            #     return_dict=True,
+            # )
+            diffusion_prompt = samples["raw_caption"] 
+            # Extract embeddings from SD model
+            with torch.no_grad():# if not self.sd_model.training else torch.enable_grad():
+                if diffusion_prompt is not None:
+                    image_embeddings = self.sd_model(
+                        processed_images,#processed_images.to(self.device) 
+                        diffusion_prompt, 
+                        self.diffusion_timesteps, 
+                        new_noise=True
+                    )
+                    print("diffusion_prompt", diffusion_prompt)
+                else:
+                    image_embeddings = self.sd_model(processed_images)#processed_images.to(self.device)
+                    print("without diffusion_prompt")
 
-            inputs_opt = self.opt_proj(query_output.last_hidden_state)
+                # save embedding in RAM and free up GPU memory
+                image_embeddings = image_embeddings.detach()#.to("cpu").data.numpy() 
+            
+            # Project SD embeddings to OPT dimensions
+            # inputs_opt = self.opt_proj(query_output.last_hidden_state)
+            inputs_opt = self.opt_proj(image_embeddings)
+            
             atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(
                 image.device
             )
@@ -293,21 +375,42 @@ class Blip2OPT(Blip2Base):
         **kwargs
     ):
         image = samples["image"]
+        processed_images = torch.cat([self.transforms(img) for img in image])
+
         with self.maybe_autocast():
-            image_embeds = self.ln_vision(self.visual_encoder(image))
-            image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(
-                image.device
-            )
+            # image_embeds = self.ln_vision(self.visual_encoder(image))
+            # image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(
+            #     image.device
+            # )
 
-            query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
-            query_output = self.Qformer.bert(
-                query_embeds=query_tokens,
-                encoder_hidden_states=image_embeds,
-                encoder_attention_mask=image_atts,
-                return_dict=True,
-            )
+            # query_tokens = self.query_tokens.expand(image_embeds.shape[0], -1, -1)
+            # query_output = self.Qformer.bert(
+            #     query_embeds=query_tokens,
+            #     encoder_hidden_states=image_embeds,
+            #     encoder_attention_mask=image_atts,
+            #     return_dict=True,
+            # )
+            diffusion_prompt = samples["raw_caption"] 
+            # Extract embeddings from SD model
+            with torch.no_grad():# if not self.sd_model.training else torch.enable_grad():
+                if diffusion_prompt is not None:
+                    image_embeddings = self.sd_model(
+                        processed_images,#processed_images.to(self.device) 
+                        diffusion_prompt, 
+                        self.diffusion_timesteps, 
+                        new_noise=True
+                    )
+                    print("diffusion_prompt", diffusion_prompt)
+                else:
+                    image_embeddings = self.sd_model(processed_images)#processed_images.to(self.device)
+                    print("without diffusion_prompt")
 
-            inputs_opt = self.opt_proj(query_output.last_hidden_state)
+                # save embedding in RAM and free up GPU memory
+                image_embeddings = image_embeddings.detach()#.to("cpu").data.numpy() 
+            
+            # Project SD embeddings to OPT dimensions
+            # inputs_opt = self.opt_proj(query_output.last_hidden_state)
+            inputs_opt = self.opt_proj(image_embeddings)
             atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(
                 image.device
             )

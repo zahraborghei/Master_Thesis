@@ -31,16 +31,19 @@ def download_datasets(root, url):
 
 
 if __name__ == "__main__":
-
+    
     config_path = get_abs_path("configs/datasets/coco/defaults_cap.yaml")
 
     storage_dir = OmegaConf.load(
         config_path
     ).datasets.coco_caption.build_info.images.storage
-
+    print("storage_dir",storage_dir)
     download_dir = Path(get_cache_path(storage_dir)).parent / "download"
+    print("download_dir",download_dir)
+    download_dir = Path("/opt/data/borghei/lavis_dataset/coco/download")
     storage_dir = Path(get_cache_path(storage_dir))
-
+    print("storage_dir",storage_dir)
+    storage_dir = Path("/opt/data/borghei/lavis_dataset/coco/images")
     if storage_dir.exists():
         print(f"Dataset already exists at {storage_dir}. Aborting.")
         exit(0)

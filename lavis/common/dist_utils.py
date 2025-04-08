@@ -129,6 +129,7 @@ def download_cached_file(url, check_hash=True, progress=False):
         return cached_file
 
     if is_main_process():
+        print("url",url)
         timm_hub.download_cached_file(url, check_hash, progress)
 
     if is_dist_avail_and_initialized():

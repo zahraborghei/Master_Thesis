@@ -374,7 +374,7 @@ class RunnerBase:
         for cur_epoch in range(self.start_epoch, self.max_epoch):
             # training phase
             if not self.evaluate_only:
-                logging.info("Start training")
+                logging.info("Start training ok")
                 # See https://github.com/salesforce/LAVIS/issues/449
                 # if cur_epoch == self.start_epoch:
                 #     self.task.before_training(

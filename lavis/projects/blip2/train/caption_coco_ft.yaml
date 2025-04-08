@@ -8,7 +8,7 @@ model:
   model_type: caption_coco_opt2.7b
   load_finetuned: False
   use_grad_checkpoint: True
-  freeze_vit: False
+  freeze_vit: True #False
 
 datasets:
   coco_caption: # name of the dataset builder
@@ -25,9 +25,10 @@ datasets:
           prompt: "a photo of "
         eval:
           name: "blip_caption"
-    # build_info:
-    #     images:
-    #         storage: '/export/share/datasets/vision/coco/images/'
+    build_info:
+        images:
+            #storage: '/export/share/datasets/vision/coco/images/'
+            storage: '/opt/data/borghei/lavis_dataset/coco/images/'
 
 run:
   task: captioning

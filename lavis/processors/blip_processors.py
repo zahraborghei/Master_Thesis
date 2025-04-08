@@ -4,6 +4,9 @@
  SPDX-License-Identifier: BSD-3-Clause
  For full license text, see the LICENSE file in the repo root or https://opensource.org/licenses/BSD-3-Clause
 """
+import sys
+sys.path.append('/opt/data/borghei/LAVIS/stable_control_representations/vc_models/src')
+from vc_models.transforms.to_tensor_if_not import ToTensorIfNot
 
 import re
 
@@ -13,7 +16,10 @@ from lavis.processors.randaugment import RandomAugment
 from omegaconf import OmegaConf
 from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode
-
+# from stable_control_representations.vc_models.src.vc_models.transforms.to_tensor_if_not import ToTensorIfNot
+# from vc_models.transforms.to_tensor_if_not import ToTensorIfNot
+from PIL import Image
+import numpy as np
 
 class BlipImageBaseProcessor(BaseProcessor):
     def __init__(self, mean=None, std=None):
@@ -165,75 +171,101 @@ class BlipImageTrainProcessor(BlipImageBaseProcessor):
 
 @registry.register_processor("blip_image_eval")
 class BlipImageEvalProcessor(BlipImageBaseProcessor):
-    def __init__(self, image_size=384, mean=None, std=None):
-        super().__init__(mean=mean, std=std)
+    def __init__(self):#, image_size=384, mean=None, std=None, resize_size = 256, center_crop = True):
+        # super().__init__(mean=mean, std=std)
 
-        self.transform = transforms.Compose(
-            [
-                transforms.Resize(
-                    (image_size, image_size), interpolation=InterpolationMode.BICUBIC
-                ),
-                transforms.ToTensor(),
-                self.normalize,
-            ]
-        )
+        # self.transform = transforms.Compose(
+        #     [
+        #         # transforms.Resize(
+        #         #     (image_size, image_size), interpolation=InterpolationMode.BICUBIC
+        #         # ),
+        #         # transforms.ToTensor(),
+        #         # self.normalize,
+        #         transforms.Resize(resize_size, interpolation=InterpolationMode.BILINEAR),
+        #         transforms.CenterCrop(resize_size) if center_crop else transforms.Identity(),
+        #         ToTensorIfNot(),
+        #         transforms.Normalize([0.5], [0.5]),
+        #     ]
+        # )
+        pass
 
     def __call__(self, item):
-        return self.transform(item)
+        # # return self.transform(item)
+        # # Handle different input types
+        # if isinstance(item, np.ndarray):
+        #     # Convert numpy array to PIL Image, apply transforms, and add batch dimension
+        #     return self.transform(Image.fromarray(item))#.unsqueeze(0)
+        # else:
+        #     # Original behavior for other input types (like PIL Images)
+        #     return self.transform(item)
+        return item
 
     @classmethod
     def from_config(cls, cfg=None):
-        if cfg is None:
-            cfg = OmegaConf.create()
+        # if cfg is None:
+        #     cfg = OmegaConf.create()
 
-        image_size = cfg.get("image_size", 384)
+        # image_size = cfg.get("image_size", 384)
 
-        mean = cfg.get("mean", None)
-        std = cfg.get("std", None)
+        # mean = cfg.get("mean", None)
+        # std = cfg.get("std", None)
 
-        return cls(image_size=image_size, mean=mean, std=std)
+        return cls()#image_size=image_size, mean=mean, std=std)
 
 
 @registry.register_processor("blip2_image_train")
 class Blip2ImageTrainProcessor(BlipImageBaseProcessor):
-    def __init__(
-        self, image_size=364, mean=None, std=None, min_scale=0.5, max_scale=1.0
-    ):
-        super().__init__(mean=mean, std=std)
+    def __init__(self):
+    #     self, image_size=364, mean=None, std=None, min_scale=0.5, max_scale=1.0, resize_size = 256, center_crop = True
+    # ):
+    #     super().__init__(mean=mean, std=std)
 
-        self.transform = transforms.Compose(
-            [
-                transforms.RandomResizedCrop(
-                    image_size,
-                    scale=(min_scale, max_scale),
-                    interpolation=InterpolationMode.BICUBIC,
-                ),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                self.normalize,
-            ]
-        )
+    #     self.transform = transforms.Compose(
+    #         [
+    #             # transforms.RandomResizedCrop(
+    #             #     image_size,
+    #             #     scale=(min_scale, max_scale),
+    #             #     interpolation=InterpolationMode.BICUBIC,
+    #             # ),
+    #             # transforms.RandomHorizontalFlip(),
+    #             # transforms.ToTensor(),
+    #             # self.normalize,
+    #             transforms.Resize(resize_size, interpolation=InterpolationMode.BILINEAR),
+    #             transforms.CenterCrop(resize_size) if center_crop else transforms.Identity(),
+    #             ToTensorIfNot(),
+    #             transforms.Normalize([0.5], [0.5]),
+    #         ]
+        # )
+        pass
 
     def __call__(self, item):
-        return self.transform(item)
+        # return self.transform(item)
+        # Handle different input types
+        # if isinstance(item, np.ndarray):
+        #     # Convert numpy array to PIL Image, apply transforms, and add batch dimension
+        #     return self.transform(Image.fromarray(item))#.unsqueeze(0)
+        # else:
+        #     # Original behavior for other input types (like PIL Images)
+        #     return self.transform(item)
+        return item
 
     @classmethod
     def from_config(cls, cfg=None):
-        if cfg is None:
-            cfg = OmegaConf.create()
+        # if cfg is None:
+        #     cfg = OmegaConf.create()
 
-        image_size = cfg.get("image_size", 364)
+        # image_size = cfg.get("image_size", 364)
 
-        mean = cfg.get("mean", None)
-        std = cfg.get("std", None)
+        # mean = cfg.get("mean", None)
+        # std = cfg.get("std", None)
 
-        min_scale = cfg.get("min_scale", 0.5)
-        max_scale = cfg.get("max_scale", 1.0)
+        # min_scale = cfg.get("min_scale", 0.5)
+        # max_scale = cfg.get("max_scale", 1.0)
 
-        return cls(
-            image_size=image_size,
-            mean=mean,
-            std=std,
-            min_scale=min_scale,
-            max_scale=max_scale,
-        )
+        return cls()
+        #     image_size=image_size,
+        #     mean=mean,
+        #     std=std,
+        #     min_scale=min_scale,
+        #     max_scale=max_scale,
+        # )

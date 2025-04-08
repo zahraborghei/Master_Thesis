@@ -52,13 +52,14 @@ class CaptionDataset(BaseDataset, __DisplMixin):
         except:
             return None # image does not exist
 
-        image = self.vis_processor(image)
+        # image = self.vis_processor(image)
         caption = self.text_processor(ann["caption"])
 
         return {
             "image": image,
             "text_input": caption,
-            "image_id": ann["image_id"]
+            "image_id": ann["image_id"],
+            "raw_caption": ann["caption"]
         }
 
 class CaptionEvalDataset(BaseDataset, __DisplMixin):
@@ -77,7 +78,7 @@ class CaptionEvalDataset(BaseDataset, __DisplMixin):
         image_path = os.path.join(self.vis_root, ann["image"])
         image = Image.open(image_path).convert("RGB")
 
-        image = self.vis_processor(image)
+        # image = self.vis_processor(image)
 
         return {
             "image": image,

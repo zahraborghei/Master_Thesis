@@ -34,7 +34,7 @@ class COCOCapEvalDataset(CaptionEvalDataset):
         image_path = os.path.join(self.vis_root, ann["image"])
         image = Image.open(image_path).convert("RGB")
 
-        image = self.vis_processor(image)
+        # image = self.vis_processor(image)
 
         img_id = ann["image"].split("/")[-1].strip(".jpg").split("_")[-1]
 
@@ -61,7 +61,7 @@ class NoCapsEvalDataset(CaptionEvalDataset):
         image_path = os.path.join(self.vis_root, ann["image"])
         image = Image.open(image_path).convert("RGB")
 
-        image = self.vis_processor(image)
+        # image = self.vis_processor(image)
 
         img_id = ann["img_id"]
 
