@@ -88,12 +88,12 @@ class Blip2OPT(Blip2Base):
         self.sd_model, self.embedding_dim, self.transforms, self.metadata = load_pretrained_model(
             # self.sd_model_config["env_kwargs"]["embedding_config"]
             model_config
-        )
+        )        
         for name, param in self.sd_model.named_parameters():
             param.requires_grad = False
-            self.sd_model = self.sd_model.eval()
-            self.sd_model.train = disabled_train
-            logging.info("freeze stable diffusion model")
+        self.sd_model = self.sd_model.eval()
+        self.sd_model.train = disabled_train
+        logging.info("freeze stable diffusion model")
         self.diffusion_timesteps = self.sd_model_config["diffusion_timesteps"]
 
         # self.visual_encoder, self.ln_vision = self.init_vision_encoder(
@@ -126,9 +126,14 @@ class Blip2OPT(Blip2Base):
             "\n", add_special_tokens=False
         ).input_ids[0]
 
+        self.dim_reducer = nn.Linear(
+            self.embedding_dim, 768, bias=False  # Reduce from 286720 to 768
+        ).to(torch.float16)  # Use half precision to save memory    
+
         self.opt_proj = nn.Linear(
             # self.Qformer.config.hidden_size, self.opt_model.config.hidden_size
-            self.embedding_dim, self.opt_model.config.hidden_size
+            #self.embedding_dim, self.opt_model.config.hidden_size
+            768, self.opt_model.config.hidden_size
         )
 
         self.max_txt_len = max_txt_len
@@ -178,6 +183,7 @@ class Blip2OPT(Blip2Base):
                 image_embeddings = image_embeddings.detach()#.to("cpu").data.numpy() 
         
         # Project SD embeddings to OPT dimensions
+        image_embeddings = self.dim_reducer(image_embeddings)
         inputs_opt = self.opt_proj(image_embeddings)#(query_output.last_hidden_state)
         atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(image.device)
 
@@ -285,6 +291,7 @@ class Blip2OPT(Blip2Base):
             
             # Project SD embeddings to OPT dimensions
             # inputs_opt = self.opt_proj(query_output.last_hidden_state)
+            image_embeddings = self.dim_reducer(image_embeddings)
             inputs_opt = self.opt_proj(image_embeddings)
             
             atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(
@@ -410,6 +417,9 @@ class Blip2OPT(Blip2Base):
             
             # Project SD embeddings to OPT dimensions
             # inputs_opt = self.opt_proj(query_output.last_hidden_state)
+           
+
+            image_embeddings = self.dim_reducer(image_embeddings)
             inputs_opt = self.opt_proj(image_embeddings)
             atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(
                 image.device

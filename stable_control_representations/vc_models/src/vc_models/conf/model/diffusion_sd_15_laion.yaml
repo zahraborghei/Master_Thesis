@@ -3,7 +3,7 @@ model:
   _target_: vc_models.models.diffusion_model.load_sd_model
   model_name: "runwayml/stable-diffusion-v1-5"
   #unet_path: /path/to/stable_diffusion/unet_ema 
-  unet_path: None
+  #unet_path: None
   noise_sampling: "per_image"
   representation_layer_name:
     - "down_1"
