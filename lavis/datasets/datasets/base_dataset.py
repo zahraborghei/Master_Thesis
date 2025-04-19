@@ -79,7 +79,17 @@ class ConcatDataset(ConcatDataset):
 
     def collater(self, samples):
         # TODO For now only supports datasets with same underlying collater implementations
-
+        # Filter out None samples
+        print("len", len(samples))
+        samples = [s for s in samples if s is not None]
+        print("len", len(samples))
+        # print("samples", samples)
+        
+        # Handle empty batch (all samples were None)
+        if len(samples) == 0:
+            return {}
+            
+        # Continue with normal processing for valid samples
         all_keys = set()
         for s in samples:
             all_keys.update(s)

@@ -90,20 +90,20 @@ def main():
     cfg.pretty_print()
 
     task = tasks.setup_task(cfg)
-    print("task:",task)
-    print("cfg   :   ",task.build_datasets(cfg))
+    # print("task:",task)
+    # print("cfg   :   ",task.build_datasets(cfg))
     datasets = task.build_datasets(cfg)
 
-    print("datasets",datasets)
+    # print("datasets",datasets)
     model = task.build_model(cfg)
-    print("model",model)
+    # print("model",model)
     runner = get_runner_class(cfg)(
        cfg=cfg, job_id=job_id, task=task, model=model, datasets=datasets
     )
 
 
 
-    print("runner",runner)
+    # print("runner",runner)
     
 
     runner.train()

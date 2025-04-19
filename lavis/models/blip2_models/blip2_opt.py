@@ -84,7 +84,7 @@ class Blip2OPT(Blip2Base):
         # Load model config directly
         model_config = OmegaConf.load(model_config_path)
         # Load Stable Diffusion model for feature extraction
-        print("model_config", model_config)
+        # print("model_config", model_config)
         self.sd_model, self.embedding_dim, self.transforms, self.metadata = load_pretrained_model(
             # self.sd_model_config["env_kwargs"]["embedding_config"]
             model_config
@@ -149,7 +149,9 @@ class Blip2OPT(Blip2Base):
 
         # processed_images = torch.cat([self.transforms(img) for img in image])
         processed_images = torch.cat([self.transforms(img) for img in image])
-        # 
+        #Note the device for later use
+        # device = processed_images.device
+
         with self.maybe_autocast():
         #     image_embeds = self.ln_vision(self.visual_encoder(image))
         # image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(
@@ -172,7 +174,7 @@ class Blip2OPT(Blip2Base):
                         processed_images,#processed_images.to(self.device) 
                         diffusion_prompt, 
                         self.diffusion_timesteps, 
-                        new_noise=True
+                        #new_noise=True
                     )
                     print("diffusion_prompt", diffusion_prompt)
                 else:
@@ -185,7 +187,7 @@ class Blip2OPT(Blip2Base):
         # Project SD embeddings to OPT dimensions
         image_embeddings = self.dim_reducer(image_embeddings)
         inputs_opt = self.opt_proj(image_embeddings)#(query_output.last_hidden_state)
-        atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(image.device)
+        atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(self.device)#.to(image.device)
 
         self.opt_tokenizer.padding_side = "right"
 
@@ -197,7 +199,7 @@ class Blip2OPT(Blip2Base):
             padding="longest",
             truncation=True,
             max_length=self.max_txt_len,
-        ).to(image.device)
+        ).to(self.device)#.to(image.device)
 
         targets = opt_tokens.input_ids.masked_fill(
             opt_tokens.input_ids == self.opt_tokenizer.pad_token_id, -100
@@ -206,8 +208,10 @@ class Blip2OPT(Blip2Base):
             targets[:, : self.prompt_length] = -100  # do not apply loss to the prompt
 
         empty_targets = (
-            torch.ones(atts_opt.size(), dtype=torch.long).to(image.device).fill_(-100)
+            torch.ones(atts_opt.size(), dtype=torch.long).to(self.device).fill_(-100)#.to(image.device).fill_(-100)
         )
+        print("empty_targets", empty_targets.shape)
+        print("targets", targets.shape)
         targets = torch.cat([empty_targets, targets], dim=1)
 
         inputs_embeds = self.opt_model.model.decoder.embed_tokens(opt_tokens.input_ids)
@@ -279,7 +283,7 @@ class Blip2OPT(Blip2Base):
                         processed_images,#processed_images.to(self.device) 
                         diffusion_prompt, 
                         self.diffusion_timesteps, 
-                        new_noise=True
+                        #new_noise=True
                     )
                     print("diffusion_prompt", diffusion_prompt)
                 else:
@@ -295,7 +299,7 @@ class Blip2OPT(Blip2Base):
             inputs_opt = self.opt_proj(image_embeddings)
             
             atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(
-                image.device
+                self.device#image.device
             )
 
             if "prompt" in samples.keys():
@@ -311,7 +315,7 @@ class Blip2OPT(Blip2Base):
                 padding="longest",
                 truncation=True,
                 max_length=self.max_txt_len,
-            ).to(image.device)
+            ).to(self.device)#.to(image.device)
             attention_mask = torch.cat([atts_opt, opt_tokens.attention_mask], dim=1)
             
             # new version for transformers>=4.27
@@ -405,7 +409,7 @@ class Blip2OPT(Blip2Base):
                         processed_images,#processed_images.to(self.device) 
                         diffusion_prompt, 
                         self.diffusion_timesteps, 
-                        new_noise=True
+                        #new_noise=True
                     )
                     print("diffusion_prompt", diffusion_prompt)
                 else:
@@ -422,7 +426,7 @@ class Blip2OPT(Blip2Base):
             image_embeddings = self.dim_reducer(image_embeddings)
             inputs_opt = self.opt_proj(image_embeddings)
             atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(
-                image.device
+                self.device#image.device
             )
 
             if isinstance(samples["text_input"], str):
@@ -439,7 +443,7 @@ class Blip2OPT(Blip2Base):
                 padding="longest",
                 truncation=True,
                 max_length=self.max_txt_len,
-            ).to(image.device)
+            ).to(self.device)#.to(image.device)
         
             attention_mask = torch.cat([atts_opt, opt_tokens.attention_mask], dim=1)
             

@@ -23,7 +23,7 @@ def load_pretrained_model(embedding_config, input_type=np.ndarray, *args, **kwar
 
     def final_transforms(transforms):
         if input_type == np.ndarray:
-            return lambda input: transforms(Image.fromarray(input)).unsqueeze(0)
+            return lambda input: transforms(input).unsqueeze(0)#transforms(Image.fromarray(input)).unsqueeze(0)
         else:
             return transforms
 
