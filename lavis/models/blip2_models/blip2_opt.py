@@ -145,12 +145,12 @@ class Blip2OPT(Blip2Base):
         self._lemmatizer = None       
 
     def forward(self, samples):
-        image = samples["image"]
-
+        image = samples["image"]# type(image) == <class 'list'> , type(image[0]) == <class 'PIL.Image.Image'>
+        # print("image", image.shape)
         # processed_images = torch.cat([self.transforms(img) for img in image])
-        processed_images = torch.cat([self.transforms(img) for img in image])
+        processed_images = torch.cat([self.transforms(img) for img in image]) # torch.Size([13, 3, 256, 256])
         #Note the device for later use
-        # device = processed_images.device
+        # device = processed_images.device #cpu
 
         with self.maybe_autocast():
         #     image_embeds = self.ln_vision(self.visual_encoder(image))
@@ -167,6 +167,8 @@ class Blip2OPT(Blip2Base):
         # )
 
             diffusion_prompt = samples["raw_caption"] 
+            
+
             # Extract embeddings from SD model
             with torch.no_grad():# if not self.sd_model.training else torch.enable_grad():
                 if diffusion_prompt is not None:
@@ -176,22 +178,27 @@ class Blip2OPT(Blip2Base):
                         self.diffusion_timesteps, 
                         #new_noise=True
                     )
-                    print("diffusion_prompt", diffusion_prompt)
+                    # print("image_embeddings", image_embeddings.shape)#torch.Size([13, 286720])
                 else:
                     image_embeddings = self.sd_model(processed_images)#processed_images.to(self.device)
                     print("without diffusion_prompt")
 
                 # save embedding in RAM and free up GPU memory
-                image_embeddings = image_embeddings.detach()#.to("cpu").data.numpy() 
+                image_embeddings = image_embeddings.detach()#.to("cpu").data.numpy()  #torch.Size([13, 286720])
+
         
         # Project SD embeddings to OPT dimensions
-        image_embeddings = self.dim_reducer(image_embeddings)
-        inputs_opt = self.opt_proj(image_embeddings)#(query_output.last_hidden_state)
+        image_embeddings = self.dim_reducer(image_embeddings) #torch.Size([13, 768])
+    
+        inputs_opt = self.opt_proj(image_embeddings)#(query_output.last_hidden_state) # torch.Size([13, 2560])
+       
         atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(self.device)#.to(image.device)
+        # atts_opt torch.Size([13])
 
         self.opt_tokenizer.padding_side = "right"
 
         text = [t + "\n" for t in samples["text_input"]]
+      
 
         opt_tokens = self.opt_tokenizer(
             text,
@@ -199,24 +206,45 @@ class Blip2OPT(Blip2Base):
             padding="longest",
             truncation=True,
             max_length=self.max_txt_len,
-        ).to(self.device)#.to(image.device)
+        ).to(self.device)#.to(image.device) #opt_tokens torch.Size([13, 22])
+        # print("opt_tokens.input_ids.shape", opt_tokens.input_ids.shape) #torch.Size([13, 22])
+        # print("opt_tokens.attention_mask.shape", opt_tokens.attention_mask.shape) #torch.Size([13, 22])
 
         targets = opt_tokens.input_ids.masked_fill(
             opt_tokens.input_ids == self.opt_tokenizer.pad_token_id, -100
-        )
+        )# torch.Size([13, 22])
+
         if self.prompt:
             targets[:, : self.prompt_length] = -100  # do not apply loss to the prompt
 
+
         empty_targets = (
             torch.ones(atts_opt.size(), dtype=torch.long).to(self.device).fill_(-100)#.to(image.device).fill_(-100)
-        )
-        print("empty_targets", empty_targets.shape)
-        print("targets", targets.shape)
+        ) #torch.Size([13])
+        empty_targets = empty_targets.unsqueeze(1)  #torch.Size([13, 1]) # Now shape is [13, 1]
+
         targets = torch.cat([empty_targets, targets], dim=1)
+        # torch.Size([13, 23])
 
         inputs_embeds = self.opt_model.model.decoder.embed_tokens(opt_tokens.input_ids)
+        # Add debug prints to understand the shapes
+        # print("inputs_opt shape:", inputs_opt.shape)#torch.Size([13, 2560])
+        # print("inputs_embeds shape:", inputs_embeds.shape)#torch.Size([13, 22, 2560])
+        # Fix for the dimension mismatch
+        if len(inputs_opt.shape) == 2:
+            inputs_opt = inputs_opt.unsqueeze(1)  # Add sequence dimension 
+            # print("Updated inputs_opt shape:", inputs_opt.shape)#torch.Size([13, 1, 2560])
+        
+        # Now concatenation should work
         inputs_embeds = torch.cat([inputs_opt, inputs_embeds], dim=1)
+        # print("inputs_embeds shape:", inputs_embeds.shape)#torch.Size([13, 23, 2560])
+        # print("atts_opt shape:", atts_opt.shape)#torch.Size([13])
+        # print("opt_tokens.attention_mask shape:", opt_tokens.attention_mask.shape)#torch.Size([13, 22])
+
+        # Add sequence dimension to atts_opt
+        atts_opt = atts_opt.unsqueeze(1)  # Now shape will be [13, 1]
         attention_mask = torch.cat([atts_opt, opt_tokens.attention_mask], dim=1)
+        # print("attention_mask shape:", attention_mask.shape)#torch.Size([13, 23])
 
         with self.maybe_autocast():
             outputs = self.opt_model(
@@ -225,8 +253,11 @@ class Blip2OPT(Blip2Base):
                 return_dict=True,
                 labels=targets,
             )
+            # print("outputs.logits shape:", outputs.logits.shape)#torch.Size([13, 23, 50272]) #batch dimension, sequence dimension, vocab size
+            
         loss = outputs.loss
-
+        print("loss:", loss)
+        
         return {"loss": loss}
 
     @torch.no_grad()
