@@ -118,7 +118,7 @@ class Blip2OPT(Blip2Base):
 
         self.opt_tokenizer = AutoTokenizer.from_pretrained(opt_model, use_fast=False)
         self.opt_model = OPTForCausalLM.from_pretrained(
-            opt_model, torch_dtype=torch.float16
+            opt_model, torch_dtype=torch.float32 #float16 # Change from float16 to float32
         )
         for name, param in self.opt_model.named_parameters():
             param.requires_grad = False
@@ -128,7 +128,7 @@ class Blip2OPT(Blip2Base):
 
         self.dim_reducer = nn.Linear(
             self.embedding_dim, 768, bias=False  # Reduce from 286720 to 768
-        ).to(torch.float16)  # Use half precision to save memory    
+        ).to(torch.float32)  
 
         self.opt_proj = nn.Linear(
             # self.Qformer.config.hidden_size, self.opt_model.config.hidden_size
@@ -256,7 +256,7 @@ class Blip2OPT(Blip2Base):
             # print("outputs.logits shape:", outputs.logits.shape)#torch.Size([13, 23, 50272]) #batch dimension, sequence dimension, vocab size
             
         loss = outputs.loss
-        print("loss:", loss)
+        # print("loss:", loss)
         
         return {"loss": loss}
 

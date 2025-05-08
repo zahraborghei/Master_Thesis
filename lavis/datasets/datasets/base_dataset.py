@@ -80,9 +80,9 @@ class ConcatDataset(ConcatDataset):
     def collater(self, samples):
         # TODO For now only supports datasets with same underlying collater implementations
         # Filter out None samples
-        print("len", len(samples))
+        # print("len", len(samples))
         samples = [s for s in samples if s is not None]
-        print("len", len(samples))
+        # print("len", len(samples))
         # print("samples", samples)
         
         # Handle empty batch (all samples were None)
