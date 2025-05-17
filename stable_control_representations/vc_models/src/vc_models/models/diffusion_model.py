@@ -126,6 +126,7 @@ class DiffusionRepresentation(torch.nn.Module):
             layer_name: int(input_image_size / spatial_downsampling[layer_name]) for layer_name in representation_layer_name
         } 
         self.final_spatial = max(self.spatial_resolutions.values())
+        # print("self.final_spatial: ", self.final_spatial)
         # get the block names for all representation layer names while removing duplicates
         self.block_names_for_unet = list(set([layer_name.split("_")[0] for layer_name in representation_layer_name]))
 

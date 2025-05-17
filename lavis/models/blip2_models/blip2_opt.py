@@ -21,6 +21,9 @@ import transformers
 # from mujoco_vc.model_loading import load_pretrained_model, fuse_embeddings_flare
 from stable_control_representations.cortexbench.mujoco_vc.src.mujoco_vc.model_loading import load_pretrained_model, fuse_embeddings_flare
 from stable_control_representations.cortexbench.mujoco_vc.visual_imitation.hydra_launcher import configure_jobs
+from stable_control_representations.vc_models.src.vc_models.models.compression_layer import create_compression_layer
+
+
 # import os
 import os
 from omegaconf import OmegaConf
@@ -60,6 +63,7 @@ class Blip2OPT(Blip2Base):
         prompt="",
         max_txt_len=32,
         apply_lemmatizer=False,
+        # compression_kernel_size: int = 3,
     ):
         """
         apply_lemmatizer: when set to True, postprocess predict_answers() result with lemmas.
@@ -126,9 +130,19 @@ class Blip2OPT(Blip2Base):
             "\n", add_special_tokens=False
         ).input_ids[0]
 
-        self.dim_reducer = nn.Linear(
-            self.embedding_dim, 768, bias=False  # Reduce from 286720 to 768
-        ).to(torch.float32)  
+        # self.dim_reducer = nn.Linear(
+        #     self.embedding_dim, 768, bias=False  # Reduce from 286720 to 768
+        # ).to(torch.float32)  
+        self.final_spatial = self.sd_model.final_spatial
+        
+
+        self.compression, _, self.output_size = create_compression_layer(
+            self.embedding_dim,#self.embed_dim,
+            self.final_spatial,
+            # kernel_size=compression_kernel_size # =3
+        )
+        # print("self.compression", self.compression)
+        print("self.output_size", self.output_size)
 
         self.opt_proj = nn.Linear(
             # self.Qformer.config.hidden_size, self.opt_model.config.hidden_size
@@ -188,8 +202,11 @@ class Blip2OPT(Blip2Base):
 
         
         # Project SD embeddings to OPT dimensions
-        image_embeddings = self.dim_reducer(image_embeddings) #torch.Size([13, 768])
-    
+        # image_embeddings = self.dim_reducer(image_embeddings) #torch.Size([13, 768])
+        image_embeddings = self.compression(image_embeddings)
+        print("image_embeddings", image_embeddings.shape)
+        exit()
+
         inputs_opt = self.opt_proj(image_embeddings)#(query_output.last_hidden_state) # torch.Size([13, 2560])
        
         atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(self.device)#.to(image.device)
@@ -288,6 +305,8 @@ class Blip2OPT(Blip2Base):
         Returns:
             captions (list): A list of strings of length batch_size * num_captions.
         """
+        print("entered generate function")
+        exit()
         image = samples["image"]
 
         processed_images = torch.cat([self.transforms(img) for img in image])
@@ -326,7 +345,10 @@ class Blip2OPT(Blip2Base):
             
             # Project SD embeddings to OPT dimensions
             # inputs_opt = self.opt_proj(query_output.last_hidden_state)
-            image_embeddings = self.dim_reducer(image_embeddings)
+            # image_embeddings = self.dim_reducer(image_embeddings)
+            image_embeddings = self.compression(image_embeddings)
+            # print("image_embeddings", image_embeddings.shape)
+
             inputs_opt = self.opt_proj(image_embeddings)
             
             atts_opt = torch.ones(inputs_opt.size()[:-1], dtype=torch.long).to(
