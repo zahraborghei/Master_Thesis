@@ -1,6 +1,1 @@
-run:
-  # ... existing code ...
-  save_freq: 1  # Save checkpoint at the end of every epoch
-  save_last: true  # Also save the final checkpoint
-  # ... existing code ...
-``` 
+ 

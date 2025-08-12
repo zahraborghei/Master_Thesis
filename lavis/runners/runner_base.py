@@ -515,6 +515,15 @@ class RunnerBase:
         """
 
         def _create_loader(dataset, num_workers, bsz, is_train, collate_fn):
+            # Add this to limit batches
+            max_batches = 100
+            max_samples = max_batches * bsz
+            
+            if is_train and len(dataset) > max_samples:
+                # Create a subset of the dataset
+                from torch.utils.data import Subset
+                dataset = Subset(dataset, range(max_samples))
+            
             # create a single dataloader for each split
             if isinstance(dataset, ChainDataset) or isinstance(
                 dataset, wds.DataPipeline
